@@ -1,1 +1,385 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anatomía Comparada: Felix domesticus vs. Homo sapiens</title>
+    <!-- Incluir Tailwind CSS para estilos rápidos y responsivos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Estilos personalizados para asegurar que el canvas 3D ocupe su espacio */
+        #threejs-container {
+            width: 100%;
+            height: 600px;
+            min-height: 400px;
+            background-color: #1f2937; /* Fondo oscuro */
+            border-radius: 0.75rem;
+            overflow: hidden;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        /* Estilos para el elemento de lista de D3.js */
+        .anatomy-item {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .anatomy-item:hover {
+            background-color: #374151;
+        }
+        .anatomy-item.selected {
+            border-left: 4px solid #3b82f6;
+            background-color: #1f2937;
+            font-weight: bold;
+        }
+        .filter-btn.active {
+            background-color: #3b82f6;
+            color: white;
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5);
+        }
+    </style>
+    <!-- Fuentes para la estética -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-900 text-white font-sans p-4 sm:p-8">
 
+    <header class="text-center mb-10">
+        <h1 class="text-4xl sm:text-5xl font-extrabold text-blue-400 mb-2">Anatomía Comparada Interactiva</h1>
+        <p class="text-xl text-gray-400">Modelo 3D y Análisis de *Felis domesticus* (Gato) vs. *Homo sapiens* (Humano)</p>
+    </header>
+
+    <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Panel de Datos y D3.js (Columna Izquierda) -->
+        <div class="lg:col-span-1 bg-gray-800 p-6 rounded-xl shadow-lg h-full">
+            <h2 class="text-2xl font-bold mb-4 border-b pb-2 border-gray-700">Comparación Estructural</h2>
+            
+            <!-- Controles y Filtrado -->
+            <div class="mb-6 space-y-4">
+                <button id="toggle-model-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition duration-200 shadow-md">
+                    Mostrar Modelo: Gato
+                </button>
+                <div id="model-name" class="text-center text-lg font-medium text-green-400">Modelo Activo: Humano</div>
+
+                <!-- Botones de Filtrado -->
+                <div class="flex flex-wrap gap-2 justify-center" id="filter-buttons">
+                    <button data-filter="Todos" class="filter-btn active bg-gray-700 hover:bg-gray-600 text-sm font-medium py-1 px-3 rounded-full transition duration-150">Todos</button>
+                    <button data-filter="Esqueleto" class="filter-btn bg-gray-700 hover:bg-gray-600 text-sm font-medium py-1 px-3 rounded-full transition duration-150">Esqueleto</button>
+                    <button data-filter="Muscular" class="filter-btn bg-gray-700 hover:bg-gray-600 text-sm font-medium py-1 px-3 rounded-full transition duration-150">Muscular</button>
+                    <button data-filter="Otro" class="filter-btn bg-gray-700 hover:bg-gray-600 text-sm font-medium py-1 px-3 rounded-full transition duration-150">Otro</button>
+                </div>
+            </div>
+
+            <div id="comparison-list" class="space-y-1 max-h-96 overflow-y-auto pr-2">
+                <!-- Los elementos de la lista generados por D3.js irán aquí -->
+                <div class="text-gray-400 italic text-sm text-center pt-4">Cargando datos anatómicos...</div>
+            </div>
+
+            <!-- Panel de Detalle (Actualizado al hacer click) -->
+            <div class="mt-6 p-4 bg-gray-700 rounded-lg">
+                <h3 class="text-xl font-bold mb-2">Detalles de la Estructura Seleccionada</h3>
+                
+                <!-- Contenedor de la Imagen Placeholder -->
+                <div id="detail-image-container" class="mb-4 rounded-lg overflow-hidden border border-gray-600">
+                    <img id="detail-image" src="" alt="Imagen comparativa" class="w-full h-auto object-cover" 
+                         onerror="this.onerror=null; this.src='https://placehold.co/400x250/111827/9ca3af?text=Imagen+no+disponible';" 
+                         style="display:none;">
+                </div>
+                
+                <div id="detail-structure" class="font-semibold text-blue-300">Ninguna estructura seleccionada.</div>
+                <div id="detail-system" class="text-sm text-gray-400 mb-3"></div>
+                <div class="space-y-2 text-sm">
+                    <p><strong>Gato:</strong> <span id="detail-cat" class="text-gray-300 italic">...</span></p>
+                    <p><strong>Humano:</strong> <span id="detail-human" class="text-gray-300 italic">...</span></p>
+                    <p class="mt-2"><strong>Diferencia Clave:</strong> <span id="detail-difference" class="text-red-400 font-medium">...</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Visualización Three.js (Columna Derecha) -->
+        <div class="lg:col-span-2 bg-gray-800 p-6 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-bold mb-4 border-b pb-2 border-gray-700">Visualización 3D (Three.js)</h2>
+            <div id="threejs-container">
+                <!-- El canvas 3D será inyectado aquí -->
+            </div>
+            <p class="text-sm text-gray-500 mt-2 text-center">Usa el ratón para rotar el modelo 3D.</p>
+        </div>
+
+    </main>
+
+    <!-- Inclusión de librerías JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+
+    <script>
+        // --- 1. DATOS SIMULADOS (AUMENTADOS) ---
+        const anatomyData = [
+            // ESQUELETO
+            { id: 1, system: "Esqueleto", structure: "Columna Vertebral", cat: "Más flexible (50-53 vértebras), horizontal. Permite gran rotación y flexión.", human: "Rígida, soporte bípedo (33 vértebras), vertical. Curvaturas especializadas.", difference: true, color: 0xffa500, imageUrl: "https://placehold.co/400x250/3b82f6/ffffff?text=COLUMNA+VERTEBRAL" },
+            { id: 2, system: "Esqueleto", structure: "Clavícula", cat: "Muy reducida (vestigial), no unida al esqueleto. Permite el paso por espacios estrechos.", human: "Completa, esencial para la movilidad del hombro y la sujeción de la extremidad superior.", difference: true, color: 0x800080, imageUrl: "https://placehold.co/400x250/f97316/ffffff?text=CLAVÍCULA" },
+            { id: 7, system: "Esqueleto", structure: "Fémur", cat: "Más corto y recto, con un ángulo de cuello menor. Adaptado para la velocidad y el salto.", human: "Largo y robusto, con un cuello femoral pronunciado. Adaptado para el soporte del peso corporal en bipedestación.", difference: true, color: 0xcccccc, imageUrl: "https://placehold.co/400x250/3b82f6/ffffff?text=FÉMUR" },
+            { id: 8, system: "Esqueleto", structure: "Pelvis", cat: "Estrecha y alargada. Orientada al movimiento horizontal y la transmisión de fuerza al correr.", human: "Ancha y en forma de cuenco. Soporta órganos internos y el peso vertical del tronco.", difference: true, color: 0xff00ff, imageUrl: "https://placehold.co/400x250/f97316/ffffff?text=PELVIS+Y+CADERA" },
+            { id: 11, system: "Esqueleto", structure: "Costillas", cat: "13 pares, más curvadas y flexibles. Proporcionan un tórax flexible.", human: "12 pares, más rígidas. Proporcionan una caja torácica protectora y menos flexible.", difference: true, color: 0x00ffff, imageUrl: "https://placehold.co/400x250/3b82f6/ffffff?text=COSTILLAS" },
+            { id: 12, system: "Esqueleto", structure: "Cráneo", cat: "Frente corta, órbitas oculares grandes y orientadas hacia adelante.", human: "Caja craneana grande para el cerebro, cara plana, órbitas frontales.", difference: true, color: 0xff4500, imageUrl: "https://placehold.co/400x250/f97316/ffffff?text=CRÁNEO" },
+            { id: 13, system: "Esqueleto", structure: "Húmero", cat: "Proporcionalmente más corto y fuerte, optimizado para la fuerza en el tren delantero.", human: "Más largo para aumentar el rango de movimiento y el alcance.", difference: true, color: 0x00ced1, imageUrl: "https://placehold.co/400x250/3b82f6/ffffff?text=HÚMERO" },
+
+            // MUSCULAR
+            { id: 3, system: "Muscular", structure: "Músculos Flexores", cat: "Pies con músculos especializados para la retracción de garras y la propulsión rápida (digitígrado).", human: "Pies diseñados para el soporte de peso y la marcha (plantígrado).", difference: true, color: 0x008000, imageUrl: "https://placehold.co/400x250/f97316/ffffff?text=MÚSCULOS+DE+LA+PATA" },
+            { id: 10, system: "Muscular", structure: "Músculo Masetero", cat: "Muy fuerte, adaptado para morder, desgarrar carne y triturar presas pequeñas (carnívoro).", human: "Fuerte, adaptado para masticación omnívora y movimientos laterales complejos.", difference: true, color: 0x0000ff, imageUrl: "https://placehold.co/400x250/3b82f6/ffffff?text=MÚSCULO+MASETERO" },
+            { id: 14, system: "Muscular", structure: "Tríceps Sural", cat: "Orientados al salto y la aceleración. Permiten la postura de puntillas.", human: "Adaptados para la postura vertical y la resistencia durante la marcha.", difference: true, color: 0xff69b4, imageUrl: "https://placehold.co/400x250/f97316/ffffff?text=TRÍCEPS+SURAL" },
+            { id: 15, system: "Muscular", structure: "Pectorales", cat: "Principalmente usados para la aducción (unir las patas al cuerpo) y el agarre.", human: "Grandes, usados para la aducción, flexión y rotación del brazo.", difference: true, color: 0x9acd32, imageUrl: "https://placehold.co/400x250/3b82f6/ffffff?text=Pectorales" },
+            { id: 16, system: "Muscular", structure: "Cuádriceps", cat: "Músculos muy potentes que facilitan la flexión del torso y la extensión rápida de las patas para el salto.", human: "Estabilización de la rodilla y extensión de la pierna en el movimiento bípedo.", difference: true, color: 0xba55d3, imageUrl: "https://placehold.co/400x250/f97316/ffffff?text=CUÁDRICEPS" },
+
+            // OTROS SISTEMAS
+            { id: 9, system: "Otro", structure: "Diafragma", cat: "Principalmente respiratorio, pero también contribuye al mecanismo de ronroneo.", human: "Principal músculo de la respiración.", difference: false, color: 0x00ff00, imageUrl: "https://placehold.co/400x250/3b82f6/ffffff?text=DIAFRAGMA" },
+            { id: 4, system: "Otro", structure: "Corazón (Estructura)", cat: "Cuatro cámaras, funcionalmente idéntico.", human: "Cuatro cámaras, funcionalmente idéntico.", difference: false, color: 0xff0000, imageUrl: "https://placehold.co/400x250/f97316/ffffff?text=CORAZÓN" },
+            { id: 5, system: "Otro", structure: "Ojo (Tapetum lucidum)", cat: "Presente, mejora la visión nocturna al reflejar luz.", human: "Ausente.", difference: true, color: 0x00ffff, imageUrl: "https://placehold.co/400x250/3b82f6/ffffff?text=OJO" },
+            { id: 6, system: "Otro", structure: "Dentición", cat: "Tipo carnívoro, colmillos largos y molares cortantes.", human: "Tipo omnívoro, molares planos y caninos reducidos.", difference: true, color: 0x8b4513, imageUrl: "https://placehold.co/400x250/f97316/ffffff?text=DENTICIÓN" }
+        ];
+        
+        // Variable para el filtro activo
+        let currentFilter = 'Todos';
+
+        // --- 2. CONFIGURACIÓN E INICIALIZACIÓN DE THREE.JS (3D) ---
+        let scene, camera, renderer, controls;
+        let humanModel, catModel;
+        let activeModel = 'human'; // 'human' o 'cat'
+
+        const container = document.getElementById('threejs-container');
+
+        function initThreeJS() {
+            // Calcular dimensiones dentro de la función para evitar conflictos de ámbito
+            const W = container.clientWidth;
+            const H = container.clientHeight;
+
+            // Escena
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1f2937);
+
+            // Cámara
+            camera = new THREE.PerspectiveCamera(75, W / H, 0.1, 1000);
+            camera.position.z = 5;
+
+            // Renderizador
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(W, H);
+            container.appendChild(renderer.domElement);
+
+            // Controles Orbitales (Permite rotar la escena con el ratón)
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; // para una rotación más suave
+
+            // Luces
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 5, 5).normalize();
+            scene.add(directionalLight);
+
+            // Crear Modelos (Geometrías simples como placeholders)
+            createModels();
+
+            // Animación
+            animate();
+            
+            // Manejar redimensionamiento
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function createModels() {
+            // Modelo Humano (Cubo alto) - Color Azul
+            const humanGeometry = new THREE.BoxGeometry(0.8, 3.0, 0.8);
+            const humanMaterial = new THREE.MeshPhongMaterial({ color: 0x3b82f6, shininess: 30 });
+            humanModel = new THREE.Mesh(humanGeometry, humanMaterial);
+            humanModel.name = 'Human';
+
+            // Modelo Gato (Caja alargada y baja) - Color Naranja
+            const catGeometry = new THREE.BoxGeometry(2.5, 1.0, 0.8);
+            const catMaterial = new THREE.MeshPhongMaterial({ color: 0xf97316, shininess: 30 });
+            catModel = new THREE.Mesh(catGeometry, catMaterial);
+            catModel.name = 'Cat';
+
+            // Posicionar y añadir el modelo inicial (Humano)
+            humanModel.position.y = 0; // Centrado
+            scene.add(humanModel);
+            
+            // Ocultar el modelo del gato inicialmente
+            catModel.visible = false;
+            scene.add(catModel);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Actualizar controles
+            controls.update();
+
+            // Rotación suave para mantener el interés
+            if (activeModel === 'human') {
+                humanModel.rotation.y += 0.005;
+            } else {
+                catModel.rotation.y += 0.005;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const W_new = container.clientWidth;
+            const H_new = container.clientHeight;
+            
+            camera.aspect = W_new / H_new;
+            camera.updateProjectionMatrix();
+            renderer.setSize(W_new, H_new);
+        }
+
+        // Función para alternar el modelo activo
+        document.getElementById('toggle-model-btn').addEventListener('click', () => {
+            if (activeModel === 'human') {
+                activeModel = 'cat';
+                humanModel.visible = false;
+                catModel.visible = true;
+                document.getElementById('model-name').textContent = "Modelo Activo: Gato";
+                document.getElementById('toggle-model-btn').textContent = "Mostrar Modelo: Humano";
+                // Ajustar cámara para el modelo más largo si es necesario
+                camera.position.set(0, 0, 5); 
+                controls.target.set(0, 0, 0);
+            } else {
+                activeModel = 'human';
+                humanModel.visible = true;
+                catModel.visible = false;
+                document.getElementById('model-name').textContent = "Modelo Activo: Humano";
+                document.getElementById('toggle-model-btn').textContent = "Mostrar Modelo: Gato";
+                // Ajustar cámara
+                camera.position.set(0, 0, 5); 
+                controls.target.set(0, 0, 0);
+            }
+            controls.update(); // Aplicar cambios a los controles
+        });
+
+        // --- 3. CONFIGURACIÓN E IMPLEMENTACIÓN DE D3.JS (DATOS) ---
+        function renderD3() {
+            const listContainer = d3.select("#comparison-list");
+            
+            // Filtrar los datos basados en el filtro activo
+            const filteredData = anatomyData.filter(d => 
+                currentFilter === 'Todos' || 
+                (currentFilter === 'Otro' && d.system !== 'Esqueleto' && d.system !== 'Muscular') ||
+                d.system === currentFilter
+            );
+
+            // Limpiar el mensaje de carga
+            listContainer.html('');
+
+            // Data binding de D3
+            const items = listContainer.selectAll(".anatomy-item")
+                .data(filteredData, d => d.id)
+                .join("div")
+                .attr("class", "anatomy-item p-3 mb-2 bg-gray-700 rounded-lg border-l-4 border-gray-700")
+                .attr("data-id", d => d.id)
+                .html(d => `
+                    <p class="text-md text-blue-300 font-semibold">${d.structure} <span class="text-xs text-gray-400">(${d.system})</span></p>
+                    <p class="text-xs ${d.difference ? 'text-red-400' : 'text-green-400'} mt-1">
+                        ${d.difference ? 'Diferencia significativa' : 'Estructura similar'}
+                    </p>
+                `)
+                .on("click", handleItemClick);
+            
+            // Seleccionar el primer elemento del conjunto filtrado si existe
+            if (filteredData.length > 0) {
+                const firstId = filteredData[0].id;
+                d3.select(`.anatomy-item[data-id="${firstId}"]`).classed("selected", true);
+                // Asegurarse de que el panel de detalle se inicialice con el primer elemento filtrado
+                const initialDetail = anatomyData.find(d => d.id === firstId);
+                updateDetailPanel(initialDetail);
+            } else {
+                 // Limpiar panel de detalle si no hay elementos
+                document.getElementById('detail-structure').textContent = "No hay datos para este filtro.";
+                document.getElementById('detail-system').textContent = `Sistema: ${currentFilter}`;
+                document.getElementById('detail-cat').textContent = "...";
+                document.getElementById('detail-human').textContent = "...";
+                document.getElementById('detail-difference').textContent = "...";
+                document.getElementById('detail-image').style.display = 'none';
+            }
+        }
+
+        function updateDetailPanel(d) {
+             // Actualizar el panel de detalle
+            document.getElementById('detail-structure').textContent = d.structure;
+            document.getElementById('detail-system').textContent = `Sistema: ${d.system}`;
+            document.getElementById('detail-cat').textContent = d.cat;
+            document.getElementById('detail-human').textContent = d.human;
+            document.getElementById('detail-difference').textContent = d.difference ? "Sí, existe una diferencia clave en la función/forma." : "No, la estructura es análoga.";
+
+            // Actualizar la imagen (Placeholder)
+            const imgElement = document.getElementById('detail-image');
+            if (d.imageUrl) {
+                imgElement.src = d.imageUrl;
+                imgElement.style.display = 'block';
+            } else {
+                imgElement.style.display = 'none';
+                imgElement.src = ''; // Limpiar source
+            }
+            
+            // Efecto visual de Three.js (cambio de color de fondo)
+            container.style.backgroundColor = d.difference ? '#331a1a' : '#1a331a';
+            setTimeout(() => {
+                container.style.backgroundColor = '#1f2937';
+            }, 500);
+        }
+
+        function handleItemClick(event, d) {
+            // Remover la clase 'selected' de todos los elementos
+            d3.selectAll(".anatomy-item").classed("selected", false);
+            
+            // Añadir la clase 'selected' al elemento clickeado
+            d3.select(event.currentTarget).classed("selected", true);
+            
+            updateDetailPanel(d);
+        }
+
+        // Manejador de filtros
+        document.querySelectorAll('.filter-btn').forEach(button => {
+            button.addEventListener('click', (event) => {
+                // Actualizar la variable de filtro
+                currentFilter = event.target.dataset.filter;
+                
+                // Actualizar clases de botones
+                document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active', 'bg-blue-600', 'hover:bg-blue-700'));
+                document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.add('bg-gray-700', 'hover:bg-gray-600'));
+                event.target.classList.remove('bg-gray-700', 'hover:bg-gray-600');
+                event.target.classList.add('active', 'bg-blue-600', 'hover:bg-blue-700');
+                
+                // Renderizar la lista filtrada
+                renderD3();
+            });
+        });
+
+
+        // --- 4. INICIO DE LA APLICACIÓN ---
+        window.onload = function () {
+            // Inicializar Three.js
+            initThreeJS();
+
+            // Inicializar D3.js (Esto usa el filtro 'Todos' por defecto)
+            renderD3();
+            
+            // Seleccionar el primer elemento por defecto e inicializar el detalle
+            if (anatomyData.length > 0) {
+                handleItemClick(null, anatomyData[0]);
+                d3.select(`.anatomy-item[data-id="${anatomyData[0].id}"]`).classed("selected", true);
+            }
+        }
+
+    </script>
+</body>
+</html>
